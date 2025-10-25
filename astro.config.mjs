@@ -4,8 +4,6 @@ import inject from '@rollup/plugin-inject';
 
 // https://astro.build/config
 export default defineConfig({
-  site: 'https://LABCAT.github.io',
-  base: '/landscapes',
   vite: {
     plugins: [
       inject({
