@@ -2,17 +2,8 @@
 import { defineConfig } from 'astro/config';
 import inject from '@rollup/plugin-inject';
 
-import cloudflare from '@astrojs/cloudflare';
-
 // https://astro.build/config
 export default defineConfig({
-  adapter: cloudflare({
-    platformProxy: {
-      enabled: true
-    },
-
-    imageService: "cloudflare"
-  }),
   vite: {
     plugins: [
       inject({
