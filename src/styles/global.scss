@@ -1,0 +1,17 @@
+// Import normalize.css for consistent base styling
+@import "normalize.css";
+@import "variables.scss";
+@import "mixins/breakpoints.scss";
+
+body {
+    overflow: hidden;
+    font-family: Orbitron,sans-serif;
+}
+
+.blend-mode-selector {
+    display: none;
+
+    @include media-breakpoint-up(md) {
+        display: flex;
+    }
+}
