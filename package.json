@@ -12,7 +12,7 @@
 		"check": "astro check"
 	},
 	"dependencies": {
-		"astro": "^5.13.5",
+		"astro": "^5.15",
 		"normalize.css": "^8.0.1",
 		"p5": "^1.9.0"
 	},

@@ -2,6 +2,8 @@ import p5 from "p5";
 import { LandscapesGrid } from './classes/LandscapesGrid.js';
 
 const sketch = (p) => {
+  p.nightMode = true;
+
   p.setup = () => {
     p.createCanvas(window.innerWidth, window.innerHeight);
     p.rectMode(p.CENTER);
@@ -50,10 +52,11 @@ const sketch = (p) => {
   };
 
   /** 
-   * Handle mouse/touch interaction
+   * Handle mouse/touch interaction - toggle night mode
    */
   p.mousePressed = () => {
-
+    p.nightMode = !p.nightMode;
+    p.redraw();
   }
 
   /** 

@@ -55,11 +55,51 @@ export class LandscapesGrid {
 
     for (let i = 0; i < this.cols; i++) {
       for (let j = 0; j < this.rows; j++) {
+        // Generate hill data for this cell
+        const numHills = p.floor(p.random(2, 6));
+        const hills = [];
+        
+        for (let h = 0; h < numHills; h++) {
+          // Store hill control points
+          const hillData = {
+            darkness: 0.3 + (h * 0.1),
+            points: [
+              { x: 0.1, y: p.random(0, 0.2) },
+              { x: 0.25, y: p.random(0, 0.4) },
+              { x: 0.4, y: p.random(0, 0.5) },
+              { x: 0.6, y: p.random(0, 0.4) },
+              { x: 0.8, y: p.random(0, 0.2) }
+            ]
+          };
+          hills.push(hillData);
+        }
+        
+        const cellColor = this.colorsGrid[i][j];
+        
+        // Calculate brightness of cell color
+        const brightness = (p.red(cellColor) + p.green(cellColor) + p.blue(cellColor)) / 3;
+        
+        // Generate both blue and black shades
+        let blueShade, blackShade;
+        
+        if (brightness > 127) {
+          // Light color - use darker shades
+          blueShade = p.color(p.random(60, 100), p.random(120, 160), p.random(180, 220));
+          blackShade = p.color(p.random(10, 30), p.random(10, 30), p.random(10, 30));
+        } else {
+          // Dark color - use lighter shades
+          blueShade = p.color(p.random(150, 200), p.random(200, 230), p.random(230, 255));
+          blackShade = p.color(p.random(40, 70), p.random(40, 70), p.random(40, 70));
+        }
+        
         skyArray.push({
           elementType: 'sky',
           gridI: i,
           gridJ: j,
-          color: this.colorsGrid[i][j]
+          color: cellColor,
+          blueShade: blueShade,
+          blackShade: blackShade,
+          hills: hills
         });
       }
     }
@@ -92,7 +132,7 @@ export class LandscapesGrid {
         const element = this.elements[i];
         const x = element.gridI * cellWidth;
         const y = element.gridJ * cellHeight;
-        this.drawSky(x, y, cellWidth, cellHeight, element.color);
+        this.drawBackground(x, y, cellWidth, cellHeight, element);
     }
   
     // Draw grid borders
@@ -110,10 +150,52 @@ export class LandscapesGrid {
     p.pop();
   }
 
-  drawSky(x, y, w, h, color) {
+  drawBackground(x, y, w, h, element) {
     const p = this.p;
-    p.noStroke();
-    p.fill(color);
-    p.rect(x + w / 2, y + h / 2, w, h);
+    
+    // Choose top color based on night mode
+    const topColor = p.nightMode ? element.blackShade : element.blueShade;
+    const color = element.color;
+    
+    // Draw sky gradient using Canvas API for better performance
+    const ctx = p.drawingContext;
+    const gradient = ctx.createLinearGradient(x, y, x, y + h);
+    gradient.addColorStop(0, `rgb(${p.red(topColor)}, ${p.green(topColor)}, ${p.blue(topColor)})`);
+    gradient.addColorStop(1, `rgb(${p.red(color)}, ${p.green(color)}, ${p.blue(color)})`);
+    ctx.fillStyle = gradient;
+    ctx.fillRect(x, y, w, h);
+
+    // Draw hills using pre-generated data
+    for (let i = 0; i < element.hills.length; i++) {
+      const hill = element.hills[i];
+      
+      // Hill color using pre-calculated darkness
+      const hillColor = p.color(
+        p.red(color) * hill.darkness,
+        p.green(color) * hill.darkness,
+        p.blue(color) * hill.darkness
+      );
+      
+      p.stroke(0, 0, 0);
+      p.strokeWeight(6);
+      p.fill(hillColor);
+      p.beginShape();
+      
+      const startY = y + h;
+      
+      // curveVertex needs duplicate first and last points
+      p.curveVertex(x, startY);
+      p.curveVertex(x, startY);
+      
+      // Use pre-generated control points
+      for (let pt of hill.points) {
+        p.curveVertex(x + w * pt.x, startY - h * pt.y);
+      }
+      
+      p.curveVertex(x + w, startY);
+      p.curveVertex(x + w, startY);
+      
+      p.endShape();
+    }
   }
 }
