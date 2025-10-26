@@ -1,3 +1,5 @@
+import { Tree } from "./Tree.js"; 
+
 export class LandscapesGrid {
   constructor(p) {
     this.p = p;
@@ -27,6 +29,7 @@ export class LandscapesGrid {
     const p = this.p;
     const palette = p.colorPalette;
     let skyArray = [];
+    let treeArray = [];
 
     for (let i = 0; i < this.cols; i++) {
       this.colorsGrid[i] = [];
@@ -62,13 +65,14 @@ export class LandscapesGrid {
         for (let h = 0; h < numHills; h++) {
           // Store hill control points
           const hillData = {
-            darkness: 0.3 + (h * 0.1),
+            darkness: 0.5 + (h * 0.1),
             points: [
-              { x: 0.1, y: p.random(0, 0.2) },
-              { x: 0.25, y: p.random(0, 0.4) },
-              { x: 0.4, y: p.random(0, 0.5) },
-              { x: 0.6, y: p.random(0, 0.4) },
-              { x: 0.8, y: p.random(0, 0.2) }
+              { x: 0, y: p.random(0.1, 0.4) },
+              { x: 0.2, y: p.random(0.1, 0.4) },
+              { x: 0.4, y: p.random(0.1, 0.4) },
+              { x: 0.6, y: p.random(0.1, 0.4) },
+              { x: 0.8, y: p.random(0.1, 0.4) },
+              { x: 1, y: p.random(0.1, 0.4) }
             ]
           };
           hills.push(hillData);
@@ -101,12 +105,25 @@ export class LandscapesGrid {
           blackShade: blackShade,
           hills: hills
         });
+
+        const treeCount = p.int(p.random(5, 10));
+        for (let t = 0; t < treeCount; t++) {
+          const tree = new Tree({
+            p,
+            gridI: i,
+            gridJ: j,
+            tw: p.random(6, 12),
+            tx: p.random(0.1, 0.9),
+          });
+          treeArray.push(tree);
+        }
       }
     }
 
     skyArray = p.shuffle(skyArray);
+    treeArray = p.shuffle(treeArray);
 
-    this.elements = skyArray;
+    this.elements = skyArray.concat(treeArray);
   }
 
   update() {
@@ -132,7 +149,12 @@ export class LandscapesGrid {
         const element = this.elements[i];
         const x = element.gridI * cellWidth;
         const y = element.gridJ * cellHeight;
-        this.drawBackground(x, y, cellWidth, cellHeight, element);
+
+        if (element.elementType === 'sky') {
+          this.drawBackground(x, y, cellWidth, cellHeight, element);
+        } else {
+          element.draw(x, y, cellWidth, cellHeight);
+        }
     }
   
     // Draw grid borders
@@ -153,49 +175,55 @@ export class LandscapesGrid {
   drawBackground(x, y, w, h, element) {
     const p = this.p;
     
+    // Create off-screen graphics buffer for this cell
+    const pg = p.createGraphics(w, h);
+    
     // Choose top color based on night mode
     const topColor = p.nightMode ? element.blackShade : element.blueShade;
     const color = element.color;
     
     // Draw sky gradient using Canvas API for better performance
-    const ctx = p.drawingContext;
-    const gradient = ctx.createLinearGradient(x, y, x, y + h);
-    gradient.addColorStop(0, `rgb(${p.red(topColor)}, ${p.green(topColor)}, ${p.blue(topColor)})`);
-    gradient.addColorStop(1, `rgb(${p.red(color)}, ${p.green(color)}, ${p.blue(color)})`);
+    const ctx = pg.drawingContext;
+    const gradient = ctx.createLinearGradient(0, 0, 0, h / 4 * 3);
+    gradient.addColorStop(1, `rgb(${p.red(topColor)}, ${p.green(topColor)}, ${p.blue(topColor)})`);
+    gradient.addColorStop(0, `rgb(${p.red(color)}, ${p.green(color)}, ${p.blue(color)})`);
     ctx.fillStyle = gradient;
-    ctx.fillRect(x, y, w, h);
+    ctx.fillRect(0, 0, w, h);
 
     // Draw hills using pre-generated data
     for (let i = 0; i < element.hills.length; i++) {
       const hill = element.hills[i];
       
       // Hill color using pre-calculated darkness
-      const hillColor = p.color(
-        p.red(color) * hill.darkness,
-        p.green(color) * hill.darkness,
-        p.blue(color) * hill.darkness
+      const hillColor = pg.color(
+        pg.red(color) * hill.darkness,
+        pg.green(color) * hill.darkness,
+        pg.blue(color) * hill.darkness
       );
       
-      p.stroke(0, 0, 0);
-      p.strokeWeight(6);
-      p.fill(hillColor);
-      p.beginShape();
+      pg.stroke(0, 0, 0);
+      pg.strokeWeight(6);
+      pg.fill(hillColor);
+      pg.beginShape();
       
-      const startY = y + h;
+      const startY = h;
       
       // curveVertex needs duplicate first and last points
-      p.curveVertex(x, startY);
-      p.curveVertex(x, startY);
+      pg.curveVertex(0, startY);
+      pg.curveVertex(0, startY);
       
       // Use pre-generated control points
       for (let pt of hill.points) {
-        p.curveVertex(x + w * pt.x, startY - h * pt.y);
+        pg.curveVertex(w * pt.x, startY - h * pt.y);
       }
       
-      p.curveVertex(x + w, startY);
-      p.curveVertex(x + w, startY);
+      pg.curveVertex(w, startY);
+      pg.curveVertex(w, startY);
       
-      p.endShape();
+      pg.endShape();
     }
+    
+    // Draw the buffer to the main canvas
+    p.image(pg, x, y);
   }
 }
