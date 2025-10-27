@@ -1,10 +1,10 @@
-import { Tree } from "./Tree.js"; 
+import { OrganicTree } from "./OrganicTree.js"; 
 
 export class LandscapesGrid {
   constructor(p) {
     this.p = p;
-    this.cols = 3;
-    this.rows = 3;
+    this.cols = 1;
+    this.rows = 2;
 
     this.fullDisplay = false;
 
@@ -96,6 +96,18 @@ export class LandscapesGrid {
           blackShade = p.color(p.random(40, 70), p.random(40, 70), p.random(40, 70));
         }
         
+        // Generate stars for this cell
+        const starCount = p.int(p.random(48, 96));
+        const stars = [];
+        for (let s = 0; s < starCount; s++) {
+          stars.push({
+            x: p.random(0, 1),
+            y: p.random(0, 0.6),
+            size: p.random(1, 4),
+            brightness: p.random(150, 255)
+          });
+        }
+        
         skyArray.push({
           elementType: 'sky',
           gridI: i,
@@ -103,19 +115,49 @@ export class LandscapesGrid {
           color: cellColor,
           blueShade: blueShade,
           blackShade: blackShade,
-          hills: hills
+          hills: hills,
+          stars: stars
         });
 
-        const treeCount = p.int(p.random(5, 10));
+        const treeCount = p.int(p.random(4, 8));
+        const treesInCell = [];
+        
         for (let t = 0; t < treeCount; t++) {
-          const tree = new Tree({
-            p,
-            gridI: i,
-            gridJ: j,
-            tw: p.random(6, 12),
-            tx: p.random(0.1, 0.9),
-          });
-          treeArray.push(tree);
+          const tx = p.random(0.1, 0.9);
+          
+          // Pick a random hill and find Y position at this X
+          const randomHill = hills[p.floor(p.random(hills.length))];
+          let ty = 1.0; // default to bottom
+          
+          // Find the closest point on the hill curve to this X position
+          let closestPoint = randomHill.points[0];
+          let minDist = Math.abs(closestPoint.x - tx);
+          for (let pt of randomHill.points) {
+            const dist = Math.abs(pt.x - tx);
+            if (dist < minDist) {
+              minDist = dist;
+              closestPoint = pt;
+            }
+          }
+          
+          // Only place tree if it's not too high on the hill (avoid peaks)
+          if (closestPoint.y < 0.3) { // only place on lower 70% of hill
+            ty = 1.0 - closestPoint.y + 0.05; // convert from height to Y position, offset down slightly
+            
+            const cellW = p.width / this.cols;
+            const cellH = p.height / this.rows;
+            const cellSize = Math.min(cellW, cellH); // use smaller dimension
+            const tree = new OrganicTree({
+              p,
+              gridI: i,
+              gridJ: j,
+              tx: tx,
+              ty: ty,
+              treeSize: p.random(cellSize * 0.08, cellSize * 0.15), // 8-15% of cell size
+            });
+            treesInCell.push({ tx, ty });
+            treeArray.push(tree);
+          }
         }
       }
     }
@@ -185,10 +227,17 @@ export class LandscapesGrid {
     // Draw sky gradient using Canvas API for better performance
     const ctx = pg.drawingContext;
     const gradient = ctx.createLinearGradient(0, 0, 0, h / 4 * 3);
-    gradient.addColorStop(1, `rgb(${p.red(topColor)}, ${p.green(topColor)}, ${p.blue(topColor)})`);
-    gradient.addColorStop(0, `rgb(${p.red(color)}, ${p.green(color)}, ${p.blue(color)})`);
+    gradient.addColorStop(this.p.nightMode ? 0 : 1, `rgb(${p.red(topColor)}, ${p.green(topColor)}, ${p.blue(topColor)})`);
+    gradient.addColorStop(this.p.nightMode ? 1 : 0, `rgb(${p.red(color)}, ${p.green(color)}, ${p.blue(color)})`);
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, w, h);
+
+    // Draw stars
+    pg.noStroke();
+    for (let star of element.stars) {
+      pg.fill(star.brightness);
+      pg.ellipse(star.x * w, star.y * h, star.size, star.size);
+    }
 
     // Draw hills using pre-generated data
     for (let i = 0; i < element.hills.length; i++) {
