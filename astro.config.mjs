@@ -27,7 +27,8 @@ export default defineConfig({
     css: {
       preprocessorOptions: {
         scss: {
-          additionalData: `@import "@styles/mixins/breakpoints.scss";`
+          additionalData: `@import "@styles/mixins/breakpoints.scss";`,
+          silenceDeprecations: ['import', 'global-builtin']
         }
       }
     }

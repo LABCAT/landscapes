@@ -1,4 +1,4 @@
-import { OrganicTree } from "./OrganicTree.js"; 
+import { OrganicTree } from "./OrganicTree.js";
 
 export class LandscapesGrid {
   constructor(p) {
@@ -10,8 +10,8 @@ export class LandscapesGrid {
 
     this.colorsGrid = [];
     this.elements = [];
-    
-    
+
+
     this.generateElements();
   }
 
@@ -27,7 +27,7 @@ export class LandscapesGrid {
 
   generateElements() {
     const p = this.p;
-    const palette = p.colorPalette;
+    const palette = p.colorPalette[p.nightMode ? 'dark' : 'light'];
     let skyArray = [];
     let treeArray = [];
 
@@ -43,14 +43,14 @@ export class LandscapesGrid {
             }
           }
         }
-        
+
         // Filter out used colors
         const availableColors = palette.filter(c => !usedColors.includes(c));
-        
+
         // If we run out of colors, start over with the full palette
         const colorsToChooseFrom = availableColors.length > 0 ? availableColors : palette;
         let chosenColor = colorsToChooseFrom[p.floor(p.random(colorsToChooseFrom.length))];
-    
+
         this.colorsGrid[i][j] = chosenColor;
       }
     }
@@ -61,7 +61,7 @@ export class LandscapesGrid {
         // Generate hill data for this cell
         const numHills = p.floor(p.random(2, 6));
         const hills = [];
-        
+
         for (let h = 0; h < numHills; h++) {
           // Store hill control points
           const hillData = {
@@ -77,15 +77,15 @@ export class LandscapesGrid {
           };
           hills.push(hillData);
         }
-        
+
         const cellColor = this.colorsGrid[i][j];
-        
+
         // Calculate brightness of cell color
         const brightness = (p.red(cellColor) + p.green(cellColor) + p.blue(cellColor)) / 3;
-        
+
         // Generate both blue and black shades
         let blueShade, blackShade;
-        
+
         if (brightness > 127) {
           // Light color - use darker shades
           blueShade = p.color(p.random(60, 100), p.random(120, 160), p.random(180, 220));
@@ -95,7 +95,7 @@ export class LandscapesGrid {
           blueShade = p.color(p.random(150, 200), p.random(200, 230), p.random(230, 255));
           blackShade = p.color(p.random(40, 70), p.random(40, 70), p.random(40, 70));
         }
-        
+
         // Generate stars for this cell
         const starCount = p.int(p.random(48, 96));
         const stars = [];
@@ -107,7 +107,7 @@ export class LandscapesGrid {
             brightness: p.random(150, 255)
           });
         }
-        
+
         skyArray.push({
           elementType: 'sky',
           gridI: i,
@@ -121,14 +121,14 @@ export class LandscapesGrid {
 
         const treeCount = p.int(p.random(4, 8));
         const treesInCell = [];
-        
+
         for (let t = 0; t < treeCount; t++) {
           const tx = p.random(0.1, 0.9);
-          
+
           // Pick a random hill and find Y position at this X
           const randomHill = hills[p.floor(p.random(hills.length))];
           let ty = 1.0; // default to bottom
-          
+
           // Find the closest point on the hill curve to this X position
           let closestPoint = randomHill.points[0];
           let minDist = Math.abs(closestPoint.x - tx);
@@ -139,11 +139,11 @@ export class LandscapesGrid {
               closestPoint = pt;
             }
           }
-          
+
           // Only place tree if it's not too high on the hill (avoid peaks)
           if (closestPoint.y < 0.3) { // only place on lower 70% of hill
             ty = 1.0 - closestPoint.y + 0.05; // convert from height to Y position, offset down slightly
-            
+
             const cellW = p.width / this.cols;
             const cellH = p.height / this.rows;
             const cellSize = Math.min(cellW, cellH); // use smaller dimension
@@ -180,13 +180,13 @@ export class LandscapesGrid {
     const p = this.p;
     const cellWidth = p.width / this.cols;
     const cellHeight = p.height / this.rows;
-  
+
     p.push();
-  
+
     const elementsToShow = this.fullDisplay ?
-      this.elements.length : 
-      Math.floor(this.elements.length * this.progress); 
-  
+      this.elements.length :
+      Math.floor(this.elements.length * this.progress);
+
     for (let i = 0; i < elementsToShow; i++) {
         const element = this.elements[i];
         const x = element.gridI * cellWidth;
@@ -198,7 +198,7 @@ export class LandscapesGrid {
           element.draw(x, y, cellWidth, cellHeight);
         }
     }
-  
+
     // Draw grid borders
     for (let i = 0; i < this.cols; i++) {
       for (let j = 0; j < this.rows; j++) {
@@ -210,20 +210,20 @@ export class LandscapesGrid {
         p.rect(x + cellWidth / 2, y + cellHeight / 2, cellWidth, cellHeight);
       }
     }
-  
+
     p.pop();
   }
 
   drawBackground(x, y, w, h, element) {
     const p = this.p;
-    
+
     // Create off-screen graphics buffer for this cell
     const pg = p.createGraphics(w, h);
-    
+
     // Choose top color based on night mode
     const topColor = p.nightMode ? element.blackShade : element.blueShade;
     const color = element.color;
-    
+
     // Draw sky gradient using Canvas API for better performance
     const ctx = pg.drawingContext;
     const gradient = ctx.createLinearGradient(0, 0, 0, h / 4 * 3);
@@ -242,36 +242,36 @@ export class LandscapesGrid {
     // Draw hills using pre-generated data
     for (let i = 0; i < element.hills.length; i++) {
       const hill = element.hills[i];
-      
+
       // Hill color using pre-calculated darkness
       const hillColor = pg.color(
         pg.red(color) * hill.darkness,
         pg.green(color) * hill.darkness,
         pg.blue(color) * hill.darkness
       );
-      
+
       pg.stroke(0, 0, 0);
       pg.strokeWeight(6);
       pg.fill(hillColor);
       pg.beginShape();
-      
+
       const startY = h;
-      
+
       // curveVertex needs duplicate first and last points
       pg.curveVertex(0, startY);
       pg.curveVertex(0, startY);
-      
+
       // Use pre-generated control points
       for (let pt of hill.points) {
         pg.curveVertex(w * pt.x, startY - h * pt.y);
       }
-      
+
       pg.curveVertex(w, startY);
       pg.curveVertex(w, startY);
-      
+
       pg.endShape();
     }
-    
+
     // Draw the buffer to the main canvas
     p.image(pg, x, y);
   }

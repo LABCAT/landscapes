@@ -1,7 +1,7 @@
 // Import normalize.css for consistent base styling
+@import "./variables";
+@import "./mixins/breakpoints";
 @import "normalize.css";
-@import "variables.scss";
-@import "mixins/breakpoints.scss";
 
 body {
     overflow: hidden;
