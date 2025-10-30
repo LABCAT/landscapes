@@ -96,9 +96,12 @@ export class LandscapesGrid {
           blackShade = p.color(p.random(40, 70), p.random(40, 70), p.random(40, 70));
         }
 
-        // Generate stars for this cell
+
+        // Always generate both stars and clouds for each cell
+        let stars = [];
+        let clouds = [];
+        // Stars
         const starCount = p.int(p.random(48, 96));
-        const stars = [];
         for (let s = 0; s < starCount; s++) {
           stars.push({
             x: p.random(0, 1),
@@ -107,6 +110,33 @@ export class LandscapesGrid {
             brightness: p.random(150, 255)
           });
         }
+        // Clouds: each cloud is made of several overlapping circle sets (lobes)
+        const cloudCount = p.int(p.random(4, 8));
+        for (let c = 0; c < cloudCount; c++) {
+          const cx = p.random(0.1, 0.9);
+          const cy = p.random(0.05, 0.25);
+          const baseSize = p.random(28, 48);
+
+          // Pre-calculate white color variants with alpha for better performance
+          const baseCol = p.color(255, 255, 255);
+          const colOuter = p.color(255, 255, 255, 64);
+          const colInner = p.color(255, 255, 255, 96);
+          const colCenter = p.color(255, 255, 255, 128);
+
+          const lobeCount = p.int(p.random(6, 10));
+          const lobes = [];
+          for (let l = 0; l < lobeCount; l++) {
+            const angle = p.random(-Math.PI/1.8, Math.PI/1.8);
+            const dist = p.random(baseSize * 0.3, baseSize * 0.75);
+            const xoff = Math.cos(angle) * dist;
+            const yoff = Math.sin(angle) * dist * 0.22;
+            const lobeSize = p.random(baseSize * 0.65, baseSize * 1.05);
+            lobes.push({ xoff, yoff, size: lobeSize });
+          }
+          lobes.push({ xoff: 0, yoff: 0, size: baseSize });
+          clouds.push({ x: cx, y: cy, colOuter, colInner, colCenter, lobes });
+        }
+
 
         skyArray.push({
           elementType: 'sky',
@@ -116,7 +146,8 @@ export class LandscapesGrid {
           blueShade: blueShade,
           blackShade: blackShade,
           hills: hills,
-          stars: stars
+          stars: stars,
+          clouds: clouds
         });
 
         const treeCount = p.int(p.random(4, 8));
@@ -232,11 +263,35 @@ export class LandscapesGrid {
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, w, h);
 
-    // Draw stars
-    pg.noStroke();
-    for (let star of element.stars) {
-      pg.fill(star.brightness);
-      pg.ellipse(star.x * w, star.y * h, star.size, star.size);
+
+    // Draw stars or clouds
+    if (this.p.nightMode) {
+      pg.noStroke();
+      for (let star of element.stars) {
+        pg.fill(star.brightness);
+        pg.ellipse(star.x * w, star.y * h, star.size, star.size);
+      }
+    } else {
+      for (let cloud of element.clouds) {
+        pg.push();
+        pg.translate(cloud.x * w, cloud.y * h);
+        pg.noStroke();
+        for (let lobe of cloud.lobes) {
+          pg.push();
+          pg.translate(lobe.xoff, lobe.yoff);
+          // Outer layer - softest
+          pg.fill(cloud.colOuter);
+          pg.ellipse(0, 0, lobe.size, lobe.size);
+          // Middle layer - main body
+          pg.fill(cloud.colInner);
+          pg.ellipse(0, 0, lobe.size * 0.5, lobe.size * 0.5);
+          // Inner layer - highlight
+          pg.fill(cloud.colCenter);
+          pg.ellipse(0, 0, lobe.size * 0.25, lobe.size * 0.25);
+          pg.pop();
+        }
+        pg.pop();
+      }
     }
 
     // Draw hills using pre-generated data
