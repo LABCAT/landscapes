@@ -12,6 +12,7 @@
 		"check": "astro check"
 	},
 	"dependencies": {
+		"@tonejs/midi": "^2.0.28",
 		"astro": "^5.15",
 		"normalize.css": "^8.0.1",
 		"p5": "^1.9.0"

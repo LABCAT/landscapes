@@ -19,6 +19,7 @@ export class OrganicTree {
     this.branches = [];
     this.leafs = [];
     this.generateTree();
+    this.precalculateLeaves();
   }
   
   generateTree() {
@@ -76,6 +77,30 @@ export class OrganicTree {
     }
   }
 
+  precalculateLeaves() {
+    const p = this.p;
+    
+    for (let i = 0; i < this.leafs.length; i++) {
+      const h = p.map(i, 0, this.leafs.length, this.minHue, this.maxHue);
+      
+      this.leafs[i].bigLeaf = {
+        hue: h,
+        alpha: p.random(0, 1),
+        diam: p.random(10, 250),
+        jitterX: p.random(-30, 30),
+        jitterY: p.random(-30, 30)
+      };
+      
+      this.leafs[i].smallLeaf = {
+        hue: h,
+        alpha: p.random(20, 60),
+        diam: p.random(0, 20),
+        jitterX: p.random(-30, 30),
+        jitterY: p.random(-30, 30)
+      };
+    }
+  }
+
   draw(cellX, cellY, cellW, cellH) {
     const p = this.p;
     const x = cellX + this.tx * cellW;
@@ -114,26 +139,18 @@ export class OrganicTree {
     p.noStroke();
     p.colorMode(p.HSB, 255);
     for (let i = 0; i < this.leafs.length; i++) {
-      const h = p.map(i, 0, this.leafs.length, this.minHue, this.maxHue);
-      const a = p.random(0, 1);
-      p.fill(h, 255, 255, a);
-      const diam = p.random(10, 250);
-      const jitterX = p.random(-30, 30);
-      const jitterY = p.random(-30, 30);
       const leaf = this.leafs[i];
-      p.ellipse(leaf.x + jitterX, leaf.y + jitterY, diam, diam);
+      const big = leaf.bigLeaf;
+      p.fill(big.hue, 255, 255, big.alpha);
+      p.ellipse(leaf.x + big.jitterX, leaf.y + big.jitterY, big.diam, big.diam);
     }
     
     // Draw small rigid leafs
     for (let i = 0; i < this.leafs.length; i++) {
-      const h = p.map(i, 0, this.leafs.length, this.minHue, this.maxHue);
-      const a = p.random(20, 60);
-      p.fill(h, 255, 255, a);
-      const diam = p.random(0, 20);
-      const jitterX = p.random(-30, 30);
-      const jitterY = p.random(-30, 30);
       const leaf = this.leafs[i];
-      p.ellipse(leaf.x + jitterX, leaf.y + jitterY, diam, diam);
+      const small = leaf.smallLeaf;
+      p.fill(small.hue, 255, 255, small.alpha);
+      p.ellipse(leaf.x + small.jitterX, leaf.y + small.jitterY, small.diam, small.diam);
     }
     
     p.colorMode(p.RGB, 255);

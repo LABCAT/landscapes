@@ -10,6 +10,7 @@ export class LandscapesGrid {
 
     this.colorsGrid = [];
     this.elements = [];
+    this.cellGraphics = {}; // Store graphics buffers for each cell
 
 
     this.generateElements();
@@ -34,7 +35,6 @@ export class LandscapesGrid {
     for (let i = 0; i < this.cols; i++) {
       this.colorsGrid[i] = [];
       for (let j = 0; j < this.rows; j++) {
-        // Get all colors that haven't been used yet
         const usedColors = [];
         for (let x = 0; x < this.cols; x++) {
           for (let y = 0; y < this.rows; y++) {
@@ -44,10 +44,7 @@ export class LandscapesGrid {
           }
         }
 
-        // Filter out used colors
         const availableColors = palette.filter(c => !usedColors.includes(c));
-
-        // If we run out of colors, start over with the full palette
         const colorsToChooseFrom = availableColors.length > 0 ? availableColors : palette;
         let chosenColor = colorsToChooseFrom[p.floor(p.random(colorsToChooseFrom.length))];
 
@@ -58,12 +55,10 @@ export class LandscapesGrid {
 
     for (let i = 0; i < this.cols; i++) {
       for (let j = 0; j < this.rows; j++) {
-        // Generate hill data for this cell
         const numHills = p.floor(p.random(2, 6));
         const hills = [];
 
         for (let h = 0; h < numHills; h++) {
-          // Store hill control points
           const hillData = {
             darkness: 0.5 + (h * 0.1),
             points: [
@@ -79,11 +74,7 @@ export class LandscapesGrid {
         }
 
         const cellColor = this.colorsGrid[i][j];
-
-        // Calculate brightness of cell color
         const brightness = (p.red(cellColor) + p.green(cellColor) + p.blue(cellColor)) / 3;
-
-        // Generate both blue and black shades
         let blueShade, blackShade;
 
         if (brightness > 127) {
@@ -97,10 +88,9 @@ export class LandscapesGrid {
         }
 
 
-        // Always generate both stars and clouds for each cell
         let stars = [];
         let clouds = [];
-        // Stars
+        
         const starCount = p.int(p.random(48, 96));
         for (let s = 0; s < starCount; s++) {
           stars.push({
@@ -110,31 +100,28 @@ export class LandscapesGrid {
             brightness: p.random(150, 255)
           });
         }
-        // Clouds: each cloud is made of several overlapping circle sets (lobes)
-        const cloudCount = p.int(p.random(4, 8));
+        
+        const cloudCount = p.int(p.random(3, 5));
         for (let c = 0; c < cloudCount; c++) {
           const cx = p.random(0.1, 0.9);
           const cy = p.random(0.05, 0.25);
-          const baseSize = p.random(28, 48);
-
-          // Pre-calculate white color variants with alpha for better performance
-          const baseCol = p.color(255, 255, 255);
-          const colOuter = p.color(255, 255, 255, 64);
-          const colInner = p.color(255, 255, 255, 96);
-          const colCenter = p.color(255, 255, 255, 128);
-
-          const lobeCount = p.int(p.random(6, 10));
+          const baseSize = p.random(35, 65);
+          const width = p.random(1.5, 2.5);
+          const lobeCount = p.int(p.random(6, 9));
           const lobes = [];
+          
           for (let l = 0; l < lobeCount; l++) {
-            const angle = p.random(-Math.PI/1.8, Math.PI/1.8);
-            const dist = p.random(baseSize * 0.3, baseSize * 0.75);
+            const angle = p.random(-Math.PI/2.5, Math.PI/2.5);
+            const distMult = p.random(0.2, 1.0);
+            const dist = baseSize * distMult * width;
             const xoff = Math.cos(angle) * dist;
-            const yoff = Math.sin(angle) * dist * 0.22;
-            const lobeSize = p.random(baseSize * 0.65, baseSize * 1.05);
-            lobes.push({ xoff, yoff, size: lobeSize });
+            const yoff = Math.sin(angle) * dist * 0.3;
+            const lobeSize = p.random(baseSize * 0.4, baseSize * 1.2) * (1.2 - distMult * 0.4);
+            const opacity = p.int(p.random(50, 100));
+            lobes.push({ xoff, yoff, size: lobeSize, opacity });
           }
-          lobes.push({ xoff: 0, yoff: 0, size: baseSize });
-          clouds.push({ x: cx, y: cy, colOuter, colInner, colCenter, lobes });
+          
+          clouds.push({ x: cx, y: cy, lobes });
         }
 
 
@@ -147,7 +134,8 @@ export class LandscapesGrid {
           blackShade: blackShade,
           hills: hills,
           stars: stars,
-          clouds: clouds
+          clouds: clouds,
+          prerenderedSky: null
         });
 
         const treeCount = p.int(p.random(4, 8));
@@ -155,12 +143,9 @@ export class LandscapesGrid {
 
         for (let t = 0; t < treeCount; t++) {
           const tx = p.random(0.1, 0.9);
-
-          // Pick a random hill and find Y position at this X
           const randomHill = hills[p.floor(p.random(hills.length))];
-          let ty = 1.0; // default to bottom
+          let ty = 1.0;
 
-          // Find the closest point on the hill curve to this X position
           let closestPoint = randomHill.points[0];
           let minDist = Math.abs(closestPoint.x - tx);
           for (let pt of randomHill.points) {
@@ -171,20 +156,18 @@ export class LandscapesGrid {
             }
           }
 
-          // Only place tree if it's not too high on the hill (avoid peaks)
-          if (closestPoint.y < 0.3) { // only place on lower 70% of hill
-            ty = 1.0 - closestPoint.y + 0.05; // convert from height to Y position, offset down slightly
-
+          if (closestPoint.y < 0.3) {
+            ty = 1.0 - closestPoint.y + 0.05;
             const cellW = p.width / this.cols;
             const cellH = p.height / this.rows;
-            const cellSize = Math.min(cellW, cellH); // use smaller dimension
+            const cellSize = Math.min(cellW, cellH);
             const tree = new OrganicTree({
               p,
               gridI: i,
               gridJ: j,
               tx: tx,
               ty: ty,
-              treeSize: p.random(cellSize * 0.08, cellSize * 0.15), // 8-15% of cell size
+              treeSize: p.random(cellSize * 0.08, cellSize * 0.15),
             });
             treesInCell.push({ tx, ty });
             treeArray.push(tree);
@@ -212,7 +195,21 @@ export class LandscapesGrid {
     const cellWidth = p.width / this.cols;
     const cellHeight = p.height / this.rows;
 
+    const sizeKey = `${Math.floor(cellWidth)}_${Math.floor(cellHeight)}`;
+    if (!this.cellGraphics[sizeKey]) {
+      this.cellGraphics[sizeKey] = p.createGraphics(cellWidth, cellHeight);
+    }
+
     p.push();
+
+    for (let i = 0; i < this.elements.length; i++) {
+        const element = this.elements[i];
+        if (element.elementType === 'sky') {
+          const x = element.gridI * cellWidth;
+          const y = element.gridJ * cellHeight;
+          this.drawBackground(x, y, cellWidth, cellHeight, element, this.cellGraphics[sizeKey]);
+        }
+    }
 
     const elementsToShow = this.fullDisplay ?
       this.elements.length :
@@ -220,17 +217,13 @@ export class LandscapesGrid {
 
     for (let i = 0; i < elementsToShow; i++) {
         const element = this.elements[i];
-        const x = element.gridI * cellWidth;
-        const y = element.gridJ * cellHeight;
-
-        if (element.elementType === 'sky') {
-          this.drawBackground(x, y, cellWidth, cellHeight, element);
-        } else {
+        if (element.elementType === 'tree') {
+          const x = element.gridI * cellWidth;
+          const y = element.gridJ * cellHeight;
           element.draw(x, y, cellWidth, cellHeight);
         }
     }
 
-    // Draw grid borders
     for (let i = 0; i < this.cols; i++) {
       for (let j = 0; j < this.rows; j++) {
         const x = i * cellWidth;
@@ -245,60 +238,65 @@ export class LandscapesGrid {
     p.pop();
   }
 
-  drawBackground(x, y, w, h, element) {
+  drawBackground(x, y, w, h, element, pg) {
     const p = this.p;
+    pg.clear();
 
-    // Create off-screen graphics buffer for this cell
-    const pg = p.createGraphics(w, h);
+    if (!element.prerenderedSky) {
+      element.prerenderedSky = p.createGraphics(w, h);
+      const sky = element.prerenderedSky;
+      
+      const topColor = p.nightMode ? element.blackShade : element.blueShade;
+      const color = element.color;
 
-    // Choose top color based on night mode
-    const topColor = p.nightMode ? element.blackShade : element.blueShade;
-    const color = element.color;
+      const ctx = sky.drawingContext;
+      const gradient = ctx.createLinearGradient(0, 0, 0, h / 4 * 3);
+      gradient.addColorStop(this.p.nightMode ? 0 : 1, `rgb(${p.red(topColor)}, ${p.green(topColor)}, ${p.blue(topColor)})`);
+      gradient.addColorStop(this.p.nightMode ? 1 : 0, `rgb(${p.red(color)}, ${p.green(color)}, ${p.blue(color)})`);
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, w, h);
 
-    // Draw sky gradient using Canvas API for better performance
-    const ctx = pg.drawingContext;
-    const gradient = ctx.createLinearGradient(0, 0, 0, h / 4 * 3);
-    gradient.addColorStop(this.p.nightMode ? 0 : 1, `rgb(${p.red(topColor)}, ${p.green(topColor)}, ${p.blue(topColor)})`);
-    gradient.addColorStop(this.p.nightMode ? 1 : 0, `rgb(${p.red(color)}, ${p.green(color)}, ${p.blue(color)})`);
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, w, h);
-
-
-    // Draw stars or clouds
-    if (this.p.nightMode) {
-      pg.noStroke();
-      for (let star of element.stars) {
-        pg.fill(star.brightness);
-        pg.ellipse(star.x * w, star.y * h, star.size, star.size);
-      }
-    } else {
-      for (let cloud of element.clouds) {
-        pg.push();
-        pg.translate(cloud.x * w, cloud.y * h);
-        pg.noStroke();
-        for (let lobe of cloud.lobes) {
-          pg.push();
-          pg.translate(lobe.xoff, lobe.yoff);
-          // Outer layer - softest
-          pg.fill(cloud.colOuter);
-          pg.ellipse(0, 0, lobe.size, lobe.size);
-          // Middle layer - main body
-          pg.fill(cloud.colInner);
-          pg.ellipse(0, 0, lobe.size * 0.5, lobe.size * 0.5);
-          // Inner layer - highlight
-          pg.fill(cloud.colCenter);
-          pg.ellipse(0, 0, lobe.size * 0.25, lobe.size * 0.25);
-          pg.pop();
+      if (this.p.nightMode) {
+        sky.noStroke();
+        for (let star of element.stars) {
+          sky.fill(star.brightness);
+          sky.ellipse(star.x * w, star.y * h, star.size, star.size);
         }
-        pg.pop();
+      } else {
+        sky.noStroke();
+        sky.drawingContext.filter = 'blur(2px)';
+        
+        for (let cloud of element.clouds) {
+          sky.push();
+          sky.translate(cloud.x * w, cloud.y * h);
+          
+          const sortedLobes = [...cloud.lobes].sort((a, b) => b.size - a.size);
+          
+          for (let lobe of sortedLobes) {
+            sky.push();
+            sky.translate(lobe.xoff, lobe.yoff);
+            
+            sky.fill(255, 255, 255, lobe.opacity * 0.5);
+            sky.ellipse(0, 0, lobe.size, lobe.size * 0.8);
+            
+            sky.fill(255, 255, 255, lobe.opacity * 0.8);
+            sky.ellipse(0, 0, lobe.size * 0.6, lobe.size * 0.5);
+            
+            sky.pop();
+          }
+          sky.pop();
+        }
+        
+        sky.drawingContext.filter = 'none';
       }
     }
 
-    // Draw hills using pre-generated data
+    pg.image(element.prerenderedSky, 0, 0);
+    
+    const color = element.color;
+
     for (let i = 0; i < element.hills.length; i++) {
       const hill = element.hills[i];
-
-      // Hill color using pre-calculated darkness
       const hillColor = pg.color(
         pg.red(color) * hill.darkness,
         pg.green(color) * hill.darkness,
@@ -312,11 +310,9 @@ export class LandscapesGrid {
 
       const startY = h;
 
-      // curveVertex needs duplicate first and last points
       pg.curveVertex(0, startY);
       pg.curveVertex(0, startY);
 
-      // Use pre-generated control points
       for (let pt of hill.points) {
         pg.curveVertex(w * pt.x, startY - h * pt.y);
       }
@@ -327,7 +323,6 @@ export class LandscapesGrid {
       pg.endShape();
     }
 
-    // Draw the buffer to the main canvas
     p.image(pg, x, y);
   }
 }
