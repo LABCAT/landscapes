@@ -74,7 +74,7 @@ const sketch = (p) => {
 
 
   p.setup = () => {
-    p.createCanvas(window.innerWidth, window.innerHeight);
+    p.createCanvas(window.innerWidth, window.innerHeight, p.WEBGL);
     p.rectMode(p.CENTER);
     p.nightMode = p.random() < 0.5;
     p.colorPalette = p.generatePalette();
@@ -105,7 +105,7 @@ const sketch = (p) => {
 
     p.currentLandscapes.fullDisplay = false;
 
-    p.currentLandscapes.init(duration);
+    p.currentLandscapes.init(duration * 0.8);
   };
 
    p.executeTrack2 = (note) => {
@@ -120,7 +120,7 @@ const sketch = (p) => {
 
     p.currentLandscapes.fullDisplay = false;
 
-    p.currentLandscapes.init(duration);
+    p.currentLandscapes.init(duration * 0.8);
   };
 
   p.generatePalette = () => {
@@ -130,7 +130,7 @@ const sketch = (p) => {
     const lightPalette = p.randomColor({ count: 12, luminosity: 'light' });
     p.shuffle(lightPalette);
 
-    return { dark: lightPalette, light: darkPalette };
+    return { dark: darkPalette, light: lightPalette };
   };
 
   /**
@@ -164,7 +164,6 @@ const sketch = (p) => {
    */
   p.windowResized = () => {
     p.resizeCanvas(p.windowWidth, p.windowHeight);
-    p.redraw();
   };
 
 };

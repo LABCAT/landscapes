@@ -7,6 +7,7 @@ export class OrganicTree {
     this.ty = ty;
     this.treeSize = treeSize;
     this.elementType = 'tree';
+    this.progress = 0;
     
     // Magical leaf colors
     const rdn0 = p.random(255);
@@ -18,7 +19,9 @@ export class OrganicTree {
     this.noiseOffset = p.random(1000);
     this.branches = [];
     this.leafs = [];
+    this.trunkBranchCount = 0;
     this.generateTree();
+    this.randomizeDrawOrder();
     this.precalculateLeaves();
   }
   
@@ -26,10 +29,11 @@ export class OrganicTree {
     const p = this.p;
     const startAngle = -p.HALF_PI;
     const branchLength = this.treeSize * 1.5;
-    this.branch(0, 0, this.treeSize * 0.4, startAngle, branchLength, 0);
+    this.branch(0, 0, this.treeSize * 0.4, startAngle, branchLength, 0, true);
+    this.trunkBranchCount = this.branches.length;
   }
   
-  branch(x, y, bSize, theta, bLength, pos) {
+  branch(x, y, bSize, theta, bLength, pos, isTrunk = false) {
     const p = this.p;
     this.noiseOffset += 0.01;
     
@@ -42,39 +46,61 @@ export class OrganicTree {
       if (pos < bLength) {
         x += p.cos(theta + p.random(-p.PI / 10, p.PI / 10));
         y += p.sin(theta + p.random(-p.PI / 10, p.PI / 10));
-        this.branch(x, y, bSize, theta, bLength, pos + 1);
+        this.branch(x, y, bSize, theta, bLength, pos + 1, isTrunk);
       } else {
         this.leafs.push({ x, y });
         
         const drawLeftBranch = p.random(1) > 0.1;
         const drawRightBranch = p.random(1) > 0.1;
+        const leftFirst = p.random(1) > 0.5;
         
-        if (drawLeftBranch) {
-          this.branch(
-            x, y,
-            p.random(0.5, 0.7) * bSize,
-            theta - p.random(p.PI / 15, p.PI / 5),
-            p.random(0.6, 0.8) * bLength,
-            0
-          );
+        const leftBranchFn = () => {
+          if (drawLeftBranch) {
+            this.branch(
+              x, y,
+              p.random(0.5, 0.7) * bSize,
+              theta - p.random(p.PI / 15, p.PI / 5),
+              p.random(0.6, 0.8) * bLength,
+              0,
+              false
+            );
+          }
+        };
+        
+        const rightBranchFn = () => {
+          if (drawRightBranch) {
+            this.branch(
+              x, y,
+              p.random(0.5, 0.7) * bSize,
+              theta + p.random(p.PI / 15, p.PI / 5),
+              p.random(0.6, 0.8) * bLength,
+              0,
+              false
+            );
+          }
+        };
+        
+        if (leftFirst) {
+          leftBranchFn();
+          rightBranchFn();
+        } else {
+          rightBranchFn();
+          leftBranchFn();
         }
         
-        if (drawRightBranch) {
-          this.branch(
-            x, y,
-            p.random(0.5, 0.7) * bSize,
-            theta + p.random(p.PI / 15, p.PI / 5),
-            p.random(0.6, 0.8) * bLength,
-            0
-          );
-        }
-        
-        // Draw tips when no branches spawn
         if (!drawLeftBranch && !drawRightBranch) {
           this.branches.push({ x, y, diam: noisyDiam, theta, isTip: true });
         }
       }
     }
+  }
+
+  randomizeDrawOrder() {
+    const p = this.p;
+    const trunkBranches = this.branches.slice(0, this.trunkBranchCount);
+    const otherBranches = this.branches.slice(this.trunkBranchCount);
+    this.branches = trunkBranches.concat(p.shuffle(otherBranches));
+    this.leafs = p.shuffle(this.leafs);
   }
 
   precalculateLeaves() {
@@ -101,52 +127,51 @@ export class OrganicTree {
     }
   }
 
+  setProgress(progress) {
+    this.progress = this.p.constrain(progress, 0, 1);
+  }
+
   draw(cellX, cellY, cellW, cellH) {
     const p = this.p;
     const x = cellX + this.tx * cellW;
     const y = cellY + this.ty * cellH;
     
+    const branchesToShow = Math.floor(this.branches.length * this.progress);
+    const leafsToShow = Math.floor(this.leafs.length * this.progress);
+    
     p.push();
     p.translate(x, y);
     p.noStroke();
+    p.fill(40);
     
-    // Draw branches 3 times with different brightness (like example)
-    for (let pass = 0; pass < 3; pass++) {
-      const brightness = p.map(pass, 0, 2, 60, 20);
-      p.fill(brightness);
+    for (let i = 0; i < branchesToShow; i++) {
+      const b = this.branches[i];
       
-      for (let i = 0; i < this.branches.length; i++) {
-        const b = this.branches[i];
-        
-        if (b.isTip) {
-          // Draw tip as quad
-          p.push();
-          p.translate(b.x, b.y);
-          p.rotate(b.theta);
-          p.quad(0, -b.diam/2, 2*b.diam, -b.diam/6, 2*b.diam, b.diam/6, 0, b.diam/2);
-          p.pop();
-        } else {
-          p.ellipse(b.x, b.y, b.diam, b.diam);
-        }
+      if (b.isTip) {
+        p.push();
+        p.translate(b.x, b.y);
+        p.rotate(b.theta);
+        p.quad(0, -b.diam/2, 2*b.diam, -b.diam/6, 2*b.diam, b.diam/6, 0, b.diam/2);
+        p.pop();
+      } else {
+        p.ellipse(b.x, b.y, b.diam, b.diam);
       }
     }
     
     p.pop();
     
-    // Draw big smooth leafs
     p.push();
     p.translate(x, y);
     p.noStroke();
     p.colorMode(p.HSB, 255);
-    for (let i = 0; i < this.leafs.length; i++) {
+    for (let i = 0; i < leafsToShow; i++) {
       const leaf = this.leafs[i];
       const big = leaf.bigLeaf;
       p.fill(big.hue, 255, 255, big.alpha);
       p.ellipse(leaf.x + big.jitterX, leaf.y + big.jitterY, big.diam, big.diam);
     }
     
-    // Draw small rigid leafs
-    for (let i = 0; i < this.leafs.length; i++) {
+    for (let i = 0; i < leafsToShow; i++) {
       const leaf = this.leafs[i];
       const small = leaf.smallLeaf;
       p.fill(small.hue, 255, 255, small.alpha);

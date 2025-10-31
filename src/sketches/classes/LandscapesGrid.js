@@ -10,8 +10,7 @@ export class LandscapesGrid {
 
     this.colorsGrid = [];
     this.elements = [];
-    this.cellGraphics = {}; // Store graphics buffers for each cell
-
+    this.sharedBuffer = null;
 
     this.generateElements();
   }
@@ -100,6 +99,7 @@ export class LandscapesGrid {
             brightness: p.random(150, 255)
           });
         }
+        stars = p.shuffle(stars);
         
         const cloudCount = p.int(p.random(3, 5));
         for (let c = 0; c < cloudCount; c++) {
@@ -123,6 +123,7 @@ export class LandscapesGrid {
           
           clouds.push({ x: cx, y: cy, lobes });
         }
+        clouds = p.shuffle(clouds);
 
 
         skyArray.push({
@@ -134,11 +135,10 @@ export class LandscapesGrid {
           blackShade: blackShade,
           hills: hills,
           stars: stars,
-          clouds: clouds,
-          prerenderedSky: null
+          clouds: clouds
         });
 
-        const treeCount = p.int(p.random(4, 8));
+        const treeCount = p.int(p.random(2, 4));
         const treesInCell = [];
 
         for (let t = 0; t < treeCount; t++) {
@@ -195,29 +195,26 @@ export class LandscapesGrid {
     const cellWidth = p.width / this.cols;
     const cellHeight = p.height / this.rows;
 
-    const sizeKey = `${Math.floor(cellWidth)}_${Math.floor(cellHeight)}`;
-    if (!this.cellGraphics[sizeKey]) {
-      this.cellGraphics[sizeKey] = p.createGraphics(cellWidth, cellHeight);
-    }
-
     p.push();
-
+    p.translate(-p.width / 2, -p.height / 2, 0);
+    
+    const skyProgress = this.fullDisplay ? 1 : this.progress;
+    
     for (let i = 0; i < this.elements.length; i++) {
         const element = this.elements[i];
         if (element.elementType === 'sky') {
           const x = element.gridI * cellWidth;
           const y = element.gridJ * cellHeight;
-          this.drawBackground(x, y, cellWidth, cellHeight, element, this.cellGraphics[sizeKey]);
+          this.drawBackground(x, y, cellWidth, cellHeight, element, skyProgress);
         }
     }
 
-    const elementsToShow = this.fullDisplay ?
-      this.elements.length :
-      Math.floor(this.elements.length * this.progress);
+    const treeProgress = this.fullDisplay ? 1 : this.progress;
 
-    for (let i = 0; i < elementsToShow; i++) {
+    for (let i = 0; i < this.elements.length; i++) {
         const element = this.elements[i];
         if (element.elementType === 'tree') {
+          element.setProgress(treeProgress);
           const x = element.gridI * cellWidth;
           const y = element.gridJ * cellHeight;
           element.draw(x, y, cellWidth, cellHeight);
@@ -238,91 +235,92 @@ export class LandscapesGrid {
     p.pop();
   }
 
-  drawBackground(x, y, w, h, element, pg) {
+  drawBackground(x, y, w, h, element, progress) {
     const p = this.p;
-    pg.clear();
-
-    if (!element.prerenderedSky) {
-      element.prerenderedSky = p.createGraphics(w, h);
-      const sky = element.prerenderedSky;
-      
-      const topColor = p.nightMode ? element.blackShade : element.blueShade;
-      const color = element.color;
-
-      const ctx = sky.drawingContext;
-      const gradient = ctx.createLinearGradient(0, 0, 0, h / 4 * 3);
-      gradient.addColorStop(this.p.nightMode ? 0 : 1, `rgb(${p.red(topColor)}, ${p.green(topColor)}, ${p.blue(topColor)})`);
-      gradient.addColorStop(this.p.nightMode ? 1 : 0, `rgb(${p.red(color)}, ${p.green(color)}, ${p.blue(color)})`);
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, w, h);
-
-      if (this.p.nightMode) {
-        sky.noStroke();
-        for (let star of element.stars) {
-          sky.fill(star.brightness);
-          sky.ellipse(star.x * w, star.y * h, star.size, star.size);
-        }
-      } else {
-        sky.noStroke();
-        sky.drawingContext.filter = 'blur(2px)';
-        
-        for (let cloud of element.clouds) {
-          sky.push();
-          sky.translate(cloud.x * w, cloud.y * h);
-          
-          const sortedLobes = [...cloud.lobes].sort((a, b) => b.size - a.size);
-          
-          for (let lobe of sortedLobes) {
-            sky.push();
-            sky.translate(lobe.xoff, lobe.yoff);
-            
-            sky.fill(255, 255, 255, lobe.opacity * 0.5);
-            sky.ellipse(0, 0, lobe.size, lobe.size * 0.8);
-            
-            sky.fill(255, 255, 255, lobe.opacity * 0.8);
-            sky.ellipse(0, 0, lobe.size * 0.6, lobe.size * 0.5);
-            
-            sky.pop();
-          }
-          sky.pop();
-        }
-        
-        sky.drawingContext.filter = 'none';
-      }
-    }
-
-    pg.image(element.prerenderedSky, 0, 0);
     
+    if (!this.sharedBuffer) {
+      this.sharedBuffer = p.createGraphics(w, h);
+    }
+    
+    const sky = this.sharedBuffer;
+    sky.clear();
+    
+    const topColor = p.nightMode ? element.blackShade : element.blueShade;
     const color = element.color;
 
+    const ctx = sky.drawingContext;
+    const gradient = ctx.createLinearGradient(0, 0, 0, h / 4 * 3);
+    gradient.addColorStop(this.p.nightMode ? 0 : 1, `rgb(${p.red(topColor)}, ${p.green(topColor)}, ${p.blue(topColor)})`);
+    gradient.addColorStop(this.p.nightMode ? 1 : 0, `rgb(${p.red(color)}, ${p.green(color)}, ${p.blue(color)})`);
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, w, h);
+
+    if (this.p.nightMode) {
+      sky.noStroke();
+      const starsToShow = Math.floor(element.stars.length * progress);
+      for (let i = 0; i < starsToShow; i++) {
+        const star = element.stars[i];
+        sky.fill(star.brightness);
+        sky.ellipse(star.x * w, star.y * h, star.size, star.size);
+      }
+    } else {
+      sky.noStroke();
+      sky.drawingContext.filter = 'blur(2px)';
+      
+      const cloudsToShow = Math.floor(element.clouds.length * progress);
+      for (let c = 0; c < cloudsToShow; c++) {
+        const cloud = element.clouds[c];
+        sky.push();
+        sky.translate(cloud.x * w, cloud.y * h);
+        
+        const sortedLobes = [...cloud.lobes].sort((a, b) => b.size - a.size);
+        
+        for (let lobe of sortedLobes) {
+          sky.push();
+          sky.translate(lobe.xoff, lobe.yoff);
+          
+          sky.fill(255, 255, 255, lobe.opacity * 0.5);
+          sky.ellipse(0, 0, lobe.size, lobe.size * 0.8);
+          
+          sky.fill(255, 255, 255, lobe.opacity * 0.8);
+          sky.ellipse(0, 0, lobe.size * 0.6, lobe.size * 0.5);
+          
+          sky.pop();
+        }
+        sky.pop();
+      }
+      
+      sky.drawingContext.filter = 'none';
+    }
+    
     for (let i = 0; i < element.hills.length; i++) {
       const hill = element.hills[i];
-      const hillColor = pg.color(
-        pg.red(color) * hill.darkness,
-        pg.green(color) * hill.darkness,
-        pg.blue(color) * hill.darkness
+      const hillColor = sky.color(
+        sky.red(color) * hill.darkness,
+        sky.green(color) * hill.darkness,
+        sky.blue(color) * hill.darkness
       );
 
-      pg.stroke(0, 0, 0);
-      pg.strokeWeight(6);
-      pg.fill(hillColor);
-      pg.beginShape();
+      sky.stroke(0, 0, 0);
+      sky.strokeWeight(6);
+      sky.fill(hillColor);
+      sky.beginShape();
 
       const startY = h;
 
-      pg.curveVertex(0, startY);
-      pg.curveVertex(0, startY);
+      sky.curveVertex(0, startY);
+      sky.curveVertex(0, startY);
 
       for (let pt of hill.points) {
-        pg.curveVertex(w * pt.x, startY - h * pt.y);
+        sky.curveVertex(w * pt.x, startY - h * pt.y);
       }
 
-      pg.curveVertex(w, startY);
-      pg.curveVertex(w, startY);
+      sky.curveVertex(w, startY);
+      sky.curveVertex(w, startY);
 
-      pg.endShape();
+      sky.endShape();
     }
 
-    p.image(pg, x, y);
+    p.image(sky, x, y);
   }
 }
