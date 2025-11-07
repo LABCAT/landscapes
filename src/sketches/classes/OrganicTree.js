@@ -142,8 +142,9 @@ export class OrganicTree {
     p.push();
     p.translate(x, y);
     p.noStroke();
-    p.fill(40);
     
+    // Draw branches
+    p.fill(40);
     for (let i = 0; i < branchesToShow; i++) {
       const b = this.branches[i];
       
@@ -158,21 +159,17 @@ export class OrganicTree {
       }
     }
     
-    p.pop();
-    
-    p.push();
-    p.translate(x, y);
-    p.noStroke();
+    // Draw leaves - combined loop for both big and small
     p.colorMode(p.HSB, 255);
     for (let i = 0; i < leafsToShow; i++) {
       const leaf = this.leafs[i];
+      
+      // Draw big leaf
       const big = leaf.bigLeaf;
       p.fill(big.hue, 255, 255, big.alpha);
       p.ellipse(leaf.x + big.jitterX, leaf.y + big.jitterY, big.diam, big.diam);
-    }
-    
-    for (let i = 0; i < leafsToShow; i++) {
-      const leaf = this.leafs[i];
+      
+      // Draw small leaf
       const small = leaf.smallLeaf;
       p.fill(small.hue, 255, 255, small.alpha);
       p.ellipse(leaf.x + small.jitterX, leaf.y + small.jitterY, small.diam, small.diam);

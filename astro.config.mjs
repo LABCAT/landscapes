@@ -5,6 +5,9 @@ import inject from '@rollup/plugin-inject';
 // https://astro.build/config
 export default defineConfig({
   site: 'https://landscapes.labcat.nz',
+  devToolbar: {
+    enabled: false
+  },
   base: '/',
   vite: {
     plugins: [

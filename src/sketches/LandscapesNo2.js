@@ -76,11 +76,12 @@ const sketch = (p) => {
   p.setup = () => {
     p.createCanvas(window.innerWidth, window.innerHeight, p.WEBGL);
     p.rectMode(p.CENTER);
-    p.nightMode = p.random() < 0.5;
+    p.nightMode = true;
     p.colorPalette = p.generatePalette();
     p.landscapes = Array.from({ length: 72 }, () => new LandscapesGrid(p));
     p.currentLandscapeIndex = -1;
-    p.currentLandscapes = new LandscapesGrid(p);
+    const randomIndex = p.floor(p.random(12));
+    p.currentLandscapes = p.landscapes[randomIndex];
     p.currentLandscapes.setFullDisplayMode(true);
   };
 
@@ -102,9 +103,7 @@ const sketch = (p) => {
     p.currentLandscapeIndex++;
     p.nightMode = false;
     p.currentLandscapes = p.landscapes[p.currentLandscapeIndex];
-
     p.currentLandscapes.fullDisplay = false;
-
     p.currentLandscapes.init(duration * 0.8);
   };
 
@@ -117,9 +116,7 @@ const sketch = (p) => {
     p.currentLandscapeIndex++;
     p.nightMode = true;
     p.currentLandscapes = p.landscapes[currentCue - 1];
-
     p.currentLandscapes.fullDisplay = false;
-
     p.currentLandscapes.init(duration * 0.8);
   };
 
@@ -155,8 +152,21 @@ const sketch = (p) => {
           p.canvas.classList.add('p5Canvas--cursor-pause');
           p.canvas.classList.remove('p5Canvas--cursor-play');
       }
+    }
   }
-  }
+
+  /**
+   * Handles key press events
+   * and saves the sketch as a PNG
+   * if the user presses Ctrl + S
+   */
+  p.keyPressed = () => {
+    if (p.keyIsDown(p.CONTROL) && p.key === 's') {
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+      p.save(`sketch-3_${timestamp}.png`);
+      return false;
+    }
+  };
 
   /**
    * Resize the canvas when the window is resized
