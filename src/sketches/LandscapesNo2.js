@@ -3,6 +3,7 @@ import "p5/lib/addons/p5.sound";
 import '@/lib/p5.randomColor.js';
 import { Midi } from '@tonejs/midi';
 import { LandscapesGrid } from './classes/LandscapesGrid.js';
+import initCapture from '@/lib/p5.capture.js';
 
 const base = import.meta.env.BASE_URL || './';
 const audio = base + 'audio/LandscapesNo2.mp3';
@@ -13,11 +14,13 @@ const sketch = (p) => {
    * Core audio properties
    */
   p.song = null;
+  p.audioSampleRate = 0;
+  p.totalAnimationFrames = 0;
   p.PPQ = 3840 * 4;
   p.bpm = 97;
   p.audioLoaded = false;
   p.songHasFinished = false;
-
+  
   /** 
    * MIDI loading and processing
    * Handles synchronization between audio and visuals
@@ -56,24 +59,31 @@ const sketch = (p) => {
       }
   }
 
-
   /** 
    * Preload function - Loading audio and setting up MIDI
    * This runs first, before setup()
    */
   p.preload = () => {
-      p.song = p.loadSound(audio, p.loadMidi);
+      p.song = p.loadSound(audio, (sound) => {
+          p.audioSampleRate = sound.sampleRate();
+          p.totalAnimationFrames = Math.floor(sound.duration() * 60);
+          p.loadMidi();
+      });
       p.song.onended(() => {
           p.songHasFinished = true;
           if (p.canvas) {
               p.canvas.classList.add('p5Canvas--cursor-play');
               p.canvas.classList.remove('p5Canvas--cursor-pause');
           }
+          if (p.captureEnabled && p.captureInProgress) {
+            p.captureInProgress = false;
+            p.downloadFrames();
+          }
       });
   };
 
-
   p.setup = () => {
+    p.pixelDensity(1);
     p.createCanvas(window.innerWidth, window.innerHeight, p.WEBGL);
     p.rectMode(p.CENTER);
     p.nightMode = true;
@@ -83,6 +93,7 @@ const sketch = (p) => {
     const randomIndex = p.floor(p.random(12));
     p.currentLandscapes = p.landscapes[randomIndex];
     p.currentLandscapes.setFullDisplayMode(true);
+    initCapture(p, { prefix: 'LandscapesNo2', enabled: true });
   };
 
   p.draw = () => {
@@ -95,9 +106,8 @@ const sketch = (p) => {
   };
 
   p.executeTrack1 = (note) => {
-    const { currentCue, durationTicks } = note;
+    const { durationTicks } = note;
     const duration = (durationTicks / p.PPQ) * (60 / p.bpm);
-
     p.clear();
 
     p.currentLandscapeIndex++;
@@ -135,7 +145,10 @@ const sketch = (p) => {
    */
   p.mousePressed = () => {
     if(p.audioLoaded){
-      if (p.song.isPlaying()) {
+      if (p.captureEnabled) {
+        p.startCapture();
+        return;
+      } else if (p.song.isPlaying()) {
           p.song.pause();
           p.canvas.classList.add('p5Canvas--cursor-play');
           p.canvas.classList.remove('p5Canvas--cursor-pause');
