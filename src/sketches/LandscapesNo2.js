@@ -3,7 +3,7 @@ import "p5/lib/addons/p5.sound";
 import '@/lib/p5.randomColor.js';
 import { Midi } from '@tonejs/midi';
 import { LandscapesGrid } from './classes/LandscapesGrid.js';
-import JSZip from 'jszip';
+import initCapture from '@/lib/p5.capture.js';
 
 const base = import.meta.env.BASE_URL || './';
 const audio = base + 'audio/LandscapesNo2.mp3';
@@ -20,14 +20,7 @@ const sketch = (p) => {
   p.bpm = 97;
   p.audioLoaded = false;
   p.songHasFinished = false;
-  /** 
-   * Capture properties
-   */
-  p.captureFilePrefix = 'LandscapesNo2';
-  p.captureEnabled = true;
-  p.frameNumber = 0;
-  p.capturedFrames = [];
-  p.captureInProgress = false;
+  
   /** 
    * MIDI loading and processing
    * Handles synchronization between audio and visuals
@@ -66,120 +59,6 @@ const sketch = (p) => {
       }
   }
 
-   p.captureFrame = () => {
-    const canvasElt = p.canvas?.elt ?? p.canvas;
-
-    const frameNum = p.frameNumber++;
-
-    return new Promise((resolve) => {
-      canvasElt.toBlob((blob) => {
-        if (blob) {
-          p.capturedFrames.push({
-            blob,
-            frameNumber: frameNum,
-            filename: `${p.captureFilePrefix}_${p.nf(frameNum, 5)}.png`
-          });
-        }
-        resolve();
-      }, 'image/png');
-    });
-  };
-
-  p.startCapture = () => {
-    if (p.captureInProgress || !p.captureEnabled) return;
-    p.capture().catch((error) => {
-      console.error('Capture failed:', error);
-      p.captureInProgress = false;
-    });
-  };
-
-  p.capture = async () => {
-    p.captureInProgress = true;
-    p.capturedFrames = [];
-    p.frameNumber = 0;
-
-    const cues = p.song._cues.slice().sort((a, b) => a.time - b.time);
-    let cueIndex = 0;
-
-    p.song._lastPos = 0;
- 
-    for (let frame = 0; frame < p.totalAnimationFrames; frame++) {
-      const frameTime = frame / 60;
-
-      if (cueIndex < cues.length && cues[cueIndex].time <= frameTime) {
-        const cue = cues[cueIndex];
-        cue.callback.call(cue.scope || p, cue.val);
-        cueIndex++;
-      }
-
-      p.song._lastPos = Math.max(0, frameTime * p.audioSampleRate);
-
-      if (p.currentLandscapes) {
-        p.currentLandscapes.update();
-        p.currentLandscapes.draw();
-      }
-
-      await p.captureFrame();
-    }
-
-    p.captureInProgress = false;
-
-    console.log(`Capture complete. Captured ${p.capturedFrames.length} frames.`);
-    await p.downloadFrames();
-  };
-
-  p.downloadFrames = async () => {
-    if (p.capturedFrames.length === 0) {
-      console.log('No frames to download');
-      return;
-    }
-
-    console.log(`Creating ZIP with ${p.capturedFrames.length} frames...`);
-    
-    p.capturedFrames.sort((a, b) => a.frameNumber - b.frameNumber);
-    
-    const zip = new JSZip();
-    
-    for (let i = 0; i < p.capturedFrames.length; i++) {
-      const frame = p.capturedFrames[i];
-      const arrayBuffer = await frame.blob.arrayBuffer();
-      zip.file(frame.filename, arrayBuffer);
-      
-      if ((i + 1) % 100 === 0) {
-        console.log(`Added ${i + 1} / ${p.capturedFrames.length} frames...`);
-      }
-    }
-
-    console.log('Generating ZIP file...');
-
-    const ffmpegCommandLines = [
-      `# Standard quality (visually lossless)`,
-      `ffmpeg -framerate 60 -i ${p.captureFilePrefix}_%05d.png -c:v libx264 -crf 18 -preset slow ${p.captureFilePrefix}.mp4`,
-      ``,
-      `# Lossless (very large file)`,
-      `ffmpeg -framerate 60 -i ${p.captureFilePrefix}_%05d.png -c:v libx264 -crf 0 -preset slow ${p.captureFilePrefix}_lossless.mp4`
-    ].join('\n');
-    zip.file('ffmpeg_command.txt', ffmpegCommandLines);
-
-    const zipBlob = await zip.generateAsync({ 
-      type: 'blob'
-    });
-    
-    const url = URL.createObjectURL(zipBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${p.captureFilePrefix}_frames_${Date.now()}.zip`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setTimeout(() => URL.revokeObjectURL(url), 100);
-
-    console.log(`Downloaded ZIP with ${p.capturedFrames.length} frames`);
-    
-    p.capturedFrames = [];
-    p.frameNumber = 0;
-  };
-
   /** 
    * Preload function - Loading audio and setting up MIDI
    * This runs first, before setup()
@@ -188,7 +67,6 @@ const sketch = (p) => {
       p.song = p.loadSound(audio, (sound) => {
           p.audioSampleRate = sound.sampleRate();
           p.totalAnimationFrames = Math.floor(sound.duration() * 60);
-          p.totalAnimationFrames = 50;
           p.loadMidi();
       });
       p.song.onended(() => {
@@ -198,12 +76,11 @@ const sketch = (p) => {
               p.canvas.classList.remove('p5Canvas--cursor-pause');
           }
           if (p.captureEnabled && p.captureInProgress) {
-              p.captureInProgress = false;
-              p.downloadFrames();
+            p.captureInProgress = false;
+            p.downloadFrames();
           }
       });
   };
-
 
   p.setup = () => {
     p.pixelDensity(1);
@@ -216,9 +93,7 @@ const sketch = (p) => {
     const randomIndex = p.floor(p.random(12));
     p.currentLandscapes = p.landscapes[randomIndex];
     p.currentLandscapes.setFullDisplayMode(true);
-    if (p.captureEnabled) {
-      p.noLoop();
-    }
+    initCapture(p, { prefix: 'LandscapesNo2', enabled: true });
   };
 
   p.draw = () => {
