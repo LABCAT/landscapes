@@ -93,7 +93,7 @@ const sketch = (p) => {
     const randomIndex = p.floor(p.random(12));
     p.currentLandscapes = p.landscapes[randomIndex];
     p.currentLandscapes.setFullDisplayMode(true);
-    initCapture(p, { prefix: 'LandscapesNo2', enabled: true });
+    initCapture(p, { prefix: 'LandscapesNo2', enabled: false });
   };
 
   p.draw = () => {
